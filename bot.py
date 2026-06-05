@@ -129,6 +129,8 @@ if __name__ == '__main__':
         print("❌ Error: BOT_TOKEN Environment Variable not found!")
         exit(1)
 
+    import asyncio
+
     # Build the application
     application = Application.builder().token(BOT_TOKEN).build()
 
@@ -137,8 +139,22 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler("lang", set_language))
     application.add_handler(MessageHandler(filters.Document.ALL, translate_subtitle))
 
-    # Run the bot using the updated polling method
     print("⚡ Bot is starting...")
-    application.run_polling()
+    
+    # Explicitly handle the event loop creation to fix the RuntimeError
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    loop.run_until_complete(application.initialize())
+    loop.run_until_complete(application.start())
+    if application.updater:
+        loop.run_until_complete(application.updater.start_polling())
+    
+    print("✨ Bot is live and polling!")
+    loop.run_forever()
+
 
 
