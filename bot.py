@@ -19,13 +19,18 @@ from telegram.ext import (
 )
 
 # ==========================================
-# RENDER PORT ERROR FIX (DUMMY SERVER)
+# RENDER DYNAMIC PORT BIND FIX
 # ==========================================
 def start_dummy_server():
-    PORT = 10000
+    PORT = int(os.environ.get("PORT", 10000))
     Handler = http.server.SimpleHTTPRequestHandler
-    with socketserver.TCPServer(("", PORT), Handler) as httpd:
-        httpd.serve_forever()
+    socketserver.TCPServer.allow_reuse_address = True
+    try:
+        with socketserver.TCPServer(("", PORT), Handler) as httpd:
+            print(f"🤖 Web server listening safely on port {PORT}")
+            httpd.serve_forever()
+    except Exception as e:
+        print(f"⚠️ Port tracking alert ignored: {e}")
 
 threading.Thread(target=start_dummy_server, daemon=True).start()
 # ==========================================
@@ -33,7 +38,6 @@ threading.Thread(target=start_dummy_server, daemon=True).start()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "YOUR_OMDB_KEY_HERE")
 
-# --- FORCE JOIN CONFIGURATION ---
 CHANNEL_USERNAME = "@Msone_Official"  
 CHANNEL_URL = "https://t.me/Msone_Official" 
 
@@ -62,9 +66,9 @@ async def is_user_joined(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bo
 
 USER_PENDING_MOVIES = {}
 
-# Eppozhum screen thazhe visible aayi nilkkunna Menu Button layout
+# FIXED: Standard custom text command menu button pattern
 def get_permanent_start_keyboard():
-    keyboard = [[KeyboardButton("🏠 Menu / Start")]]
+    keyboard = [[KeyboardButton("🏠 Main Menu / Start")]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, persistent=True)
 
 async def send_force_join_msg(update: Update, context: ContextTypes.DEFAULT_TYPE, is_callback=False):
@@ -112,7 +116,7 @@ def get_main_menu_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# 4 Main Details + Poster fetch cheyyunna code block
+# 4 Details + Poster Presentation block
 async def send_movie_presentation(chat_id: int, user_id: int, movie_param: str, context: ContextTypes.DEFAULT_TYPE):
     langs = load_langs()
     target_lang = langs.get(str(user_id), 'ml')
@@ -158,8 +162,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del USER_PENDING_MOVIES[user_id]
         return
 
-    msg = "🎬 *Subtitle Translation Bot*\n\nPlease select your *Country / Region* first:\n"
-    await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_main_menu_keyboard())
+    # FIXED SOLUTION: Splitting message pipelines to trigger layout engine safely
+    await update.message.reply_text(
+        "🎬 *Subtitle Translation Bot Initialized*", 
+        parse_mode="Markdown", 
+        reply_markup=get_permanent_start_keyboard()
+    )
+    await update.message.reply_text(
+        "Please select your *Country / Region* first:\n", 
+        parse_mode="Markdown", 
+        reply_markup=get_main_menu_keyboard()
+    )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -176,7 +189,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await send_movie_presentation(update.effective_chat.id, user_id, pending_movie, context)
                 del USER_PENDING_MOVIES[user_id]
             else:
-                await query.message.reply_text("✅ *Verification Successful!*\n\nPlease select your Country:", parse_mode="Markdown", reply_markup=get_main_menu_keyboard())
+                await query.message.reply_text("✅ *Verification Successful!*\n\nUse options below:", parse_mode="Markdown", reply_markup=get_permanent_start_keyboard())
+                await query.message.reply_text("Please select your Country:", reply_markup=get_main_menu_keyboard())
         else:
             await query.answer("❌ You haven't joined the channel yet! Please join and try again.", show_alert=True)
         return
@@ -240,10 +254,9 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_text = update.message.text.strip()
     
-    # Permanent layout click tracker routing block
-    if user_text in ["🏠 Menu / Start", "/start"]:
-        msg = "🎬 *Subtitle Translation Bot*\n\nPlease select your *Country / Region* first:\n"
-        await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_main_menu_keyboard())
+    if user_text in ["🏠 Main Menu / Start", "/start"]:
+        await update.message.reply_text("🎬 *Bot Menu Reloaded*", reply_markup=get_permanent_start_keyboard())
+        await update.message.reply_text("Please select your *Country / Region* first:\n", parse_mode="Markdown", reply_markup=get_main_menu_keyboard())
         return
 
     await update.message.reply_text(f"🔍 Checking availability for: *{user_text}*...", parse_mode="Markdown")
@@ -321,7 +334,6 @@ async def translate_subtitle(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         await update.message.reply_text(info_msg, parse_mode="Markdown")
 
-    # FIX: Using 'with open()' scope structure blocks file leaks and protects Render framework from crashing early
     with open(output_file, 'rb') as f:
         await update.message.reply_document(
             document=f, 
@@ -357,3 +369,4 @@ if __name__ == '__main__':
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print("Bot stopped.")
+
