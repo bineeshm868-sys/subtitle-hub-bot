@@ -34,7 +34,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "YOUR_OMDB_KEY_HERE")
 
 # --- FORCE JOIN CONFIGURATION ---
-CHANNEL_USERNAME = "@Msone_Official"  # Ningalude channel username ivide nalkuka
+CHANNEL_USERNAME = "@Msone_Official"  
 CHANNEL_URL = "https://t.me/Msone_Official" 
 
 LANG_FILE = "user_langs.json"
@@ -62,9 +62,9 @@ async def is_user_joined(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bo
 
 USER_PENDING_MOVIES = {}
 
-# Chat screen-il eppozhum podunnathe permanent START button setup
+# Eppozhum screen thazhe visible aayi nilkkunna Menu Button layout
 def get_permanent_start_keyboard():
-    keyboard = [[KeyboardButton("/start")]]
+    keyboard = [[KeyboardButton("🏠 Menu / Start")]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, persistent=True)
 
 async def send_force_join_msg(update: Update, context: ContextTypes.DEFAULT_TYPE, is_callback=False):
@@ -112,7 +112,7 @@ def get_main_menu_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# Ningal chodicha aa 4 pradhanapetta karyangalum poster-um kanikkunna layout function
+# 4 Main Details + Poster fetch cheyyunna code block
 async def send_movie_presentation(chat_id: int, user_id: int, movie_param: str, context: ContextTypes.DEFAULT_TYPE):
     langs = load_langs()
     target_lang = langs.get(str(user_id), 'ml')
@@ -124,7 +124,7 @@ async def send_movie_presentation(chat_id: int, user_id: int, movie_param: str, 
 
     if movie_info and movie_info.get("Poster") and movie_info.get("Poster") != "N/A":
         info_msg = (
-            f"🎬 *{movie_info.get('Title')} ({movie_info.get('Year')})*\n"
+            f"🎬 *Movie:* {movie_info.get('Title')} ({movie_info.get('Year')})\n"
             f"🎥 *Director:* {movie_info.get('Director')}\n"
             f"🌐 *Official Language:* {movie_info.get('Language')}\n"
             f"🔄 *Requested Translation:* {requested_lang}\n\n"
@@ -147,12 +147,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         movie_param = " ".join(context.args).replace("_", " ")
         USER_PENDING_MOVIES[user_id] = movie_param
 
-    # Aadyam channel join check cheyyunnu (Join cheythillenghil details poornamayum marachuvekkum)
     if not await is_user_joined(user_id, context):
         await send_force_join_msg(update, context)
         return
 
-    # User joined aanenghil mathram layout rendering
     if movie_param:
         await update.message.reply_text(f"🎬 *Target Found:* Processing `{movie_param}`...", parse_mode="Markdown", reply_markup=get_permanent_start_keyboard())
         await send_movie_presentation(update.effective_chat.id, user_id, movie_param, context)
@@ -242,8 +240,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_text = update.message.text.strip()
     
-    # User thazhe ulla permanent start button amarthumpol menu varan vedi
-    if user_text == "/start":
+    # Permanent layout click tracker routing block
+    if user_text in ["🏠 Menu / Start", "/start"]:
         msg = "🎬 *Subtitle Translation Bot*\n\nPlease select your *Country / Region* first:\n"
         await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_main_menu_keyboard())
         return
@@ -268,8 +266,94 @@ async def translate_subtitle(update: Update, context: ContextTypes.DEFAULT_TYPE)
     document = update.message.document
     if not document.file_name.lower().endswith('.srt'):
         await update.message.reply_text("❌ Extension error. Drop clean .srt documents.")
+        return
 
+    langs = load_langs()
+    target_lang = langs.get(str(user_id), 'ml')
+    await update.message.reply_text(f"⏳ Compiling translation layer for *{target_lang.upper()}*...", parse_mode="Markdown")
 
+    cleaned_name = clean_movie_name(document.file_name)
+    movie_info = get_movie_details(cleaned_name)
+    requested_lang = LANG_MAPPING.get(target_lang, target_lang.title())
 
+    if movie_info:
+        info_msg = (
+            f"🎬 *Movie:* {movie_info.get('Title')} ({movie_info.get('Year')})\n"
+            f"🎥 *Director:* {movie_info.get('Director')}\n"
+            f"🌐 *Official Language:* {movie_info.get('Language')}\n"
+            f"🔄 *Translated Language:* {requested_lang}\n\n"
+            f"📥 *Direct Download (DD) File Below:* 👇"
+        )
+    else:
+        info_msg = (
+            f"🎬 *Movie Name:* {document.file_name}\n"
+            f"🔄 *Translated Language:* {requested_lang}\n\n"
+            f"📥 *Direct Download (DD) File Below:* 👇"
+        )
 
+    tg_file = await context.bot.get_file(document.file_id)
+    input_file = f"{user_id}_input.srt"
+    output_file = f"{user_id}_translated.srt"
+    await tg_file.download_to_drive(input_file)
 
+    try:
+        subs = pysrt.open(input_file, encoding='utf-8')
+    except:
+        try:
+            subs = pysrt.open(input_file, encoding='iso-8859-1')
+        except Exception as e:
+            await update.message.reply_text(f"❌ Read execution failure: {e}")
+            if os.path.exists(input_file): os.remove(input_file)
+            return
+
+    translator = GoogleTranslator(source='auto', target=target_lang)
+    for sub in subs:
+        if sub.text.strip():
+            try:
+                sub.text = translator.translate(sub.text)
+            except:
+                pass
+
+    subs.save(output_file, encoding='utf-8')
+
+    if movie_info and movie_info.get("Poster") and movie_info.get("Poster") != "N/A":
+        await context.bot.send_photo(chat_id=update.effective_chat.id, photo=movie_info.get("Poster"), caption=info_msg, parse_mode="Markdown")
+    else:
+        await update.message.reply_text(info_msg, parse_mode="Markdown")
+
+    # FIX: Using 'with open()' scope structure blocks file leaks and protects Render framework from crashing early
+    with open(output_file, 'rb') as f:
+        await update.message.reply_document(
+            document=f, 
+            filename=f"[DD]_{document.file_name}", 
+            reply_markup=get_permanent_start_keyboard()
+        )
+
+    if os.path.exists(input_file): os.remove(input_file)
+    if os.path.exists(output_file): os.remove(output_file)
+
+async def main():
+    if not BOT_TOKEN:
+        print("❌ Error: BOT_TOKEN Environment Variable missing!")
+        return
+
+    application = Application.builder().token(BOT_TOKEN).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(button_handler))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    application.add_handler(MessageHandler(filters.Document.ALL, translate_subtitle))
+    
+    print("⚡ Bot starting safely layout workflow...")
+    await application.initialize()
+    await application.start()
+    if application.updater:
+        await application.updater.start_polling()
+    
+    await asyncio.Event().wait()
+
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("Bot stopped.")
