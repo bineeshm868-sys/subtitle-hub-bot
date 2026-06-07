@@ -5,32 +5,16 @@ from deep_translator import GoogleTranslator
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-# Configuration
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = -1002047353995  
 CHANNEL_URL = "https://t.me/subtitlehubofficial"
 
-# Supported Regions and Languages
 LANG_DATA = {
-    'india': {
-        'ml': 'Malayalam 🇮🇳', 
-        'hi': 'Hindi 🇮🇳', 
-        'ta': 'Tamil 🇮🇳', 
-        'te': 'Telugu 🇮🇳'
-    },
-    'europe': {
-        'en': 'English 🇬🇧', 
-        'es': 'Spanish 🇪🇸', 
-        'fr': 'French 🇫🇷'
-    }
+    'india': {'ml': 'Malayalam 🇮🇳', 'hi': 'Hindi 🇮🇳', 'ta': 'Tamil 🇮🇳', 'te': 'Telugu 🇮🇳'},
+    'europe': {'en': 'English 🇬🇧', 'es': 'Spanish 🇪🇸', 'fr': 'French 🇫🇷'}
 }
 
-def get_main_keyboard():
-    """Returns the persistent main menu keyboard."""
-    return ReplyKeyboardMarkup([[KeyboardButton("🏠 Main Menu")]], resize_keyboard=True)
-
 async def is_user_joined(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Verifies if the user is a member of the required channel."""
     try:
         member = await context.bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
         return member.status in ['creator', 'administrator', 'member']
@@ -38,7 +22,6 @@ async def is_user_joined(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bo
         return False
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles the /start command."""
     user_id = update.effective_user.id
     if not await is_user_joined(user_id, context):
         btn = InlineKeyboardMarkup([[InlineKeyboardButton("📢 Join Channel", url=CHANNEL_URL)]])
@@ -52,7 +35,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Welcome! Please select your region:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles button callbacks for region and language selection."""
     query = update.callback_query
     await query.answer()
     
@@ -67,7 +49,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(f"Language configured successfully! Please upload your .srt file.")
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles subtitle file translation."""
     if 'target_lang' not in context.user_data:
         await update.message.reply_text("Please select a language first using /start")
         return
@@ -82,7 +63,6 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         subs = pysrt.open(input_filename)
         translator = GoogleTranslator(source='auto', target=lang)
-        
         for sub in subs:
             if sub.text.strip():
                 sub.text = translator.translate(sub.text)
@@ -90,23 +70,22 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         subs.save(output_filename, encoding='utf-8')
         await update.message.reply_document(document=open(output_filename, "rb"), caption="Translation complete.")
     except Exception as e:
-        await update.message.reply_text(f"An error occurred during translation: {e}")
+        await update.message.reply_text(f"An error occurred: {e}")
     finally:
         if os.path.exists(input_filename): os.remove(input_filename)
         if os.path.exists(output_filename): os.remove(output_filename)
 
-def main():
-    """Starts the bot."""
+async def main():
     app = Application.builder().token(BOT_TOKEN).build()
-    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     
     print("Bot service initialized and running...")
-    app.run_polling()
+    await app.run_polling()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
+
 
 
