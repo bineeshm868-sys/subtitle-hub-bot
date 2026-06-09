@@ -76,16 +76,19 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(output_filename): os.remove(output_filename)
 
 async def main():
-    app = Application.builder().token(BOT_TOKEN).build()
+     app = 
+    Application.builder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
-    
-    print("Bot service initialized and running...")
-    await app.run_polling()
 
-if __name__ == '__main__':
-    asyncio.run(main())
+    print("Bot Running...")
+
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
 
 
 
