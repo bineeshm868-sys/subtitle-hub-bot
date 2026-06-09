@@ -76,8 +76,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(output_filename): os.remove(output_filename)
 
 async def main():
-     app = 
-    Application.builder().token(BOT_TOKEN).build()
+      app = Application.builder().token(BOT_TOKEN).build()
+    
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
